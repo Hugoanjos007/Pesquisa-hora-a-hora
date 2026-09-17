@@ -18,32 +18,35 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
+from dotenv import load_dotenv
 
 # ================= CONFIGURAÇÕES =================
-USUARIO = "hugo.anjos"
-SENHA = "Fort2022@"
-TIMEOUT = 25
+load_dotenv()
 
-URL_LOGIN = "http://192.168.15.201/crm/login.php"
-URL_RELATORIO_1 = "http://192.168.15.201/crm/index.php?codmodulo=389"
-URL_RELATORIO_2 = "http://192.168.15.201/crm/index.php?codmodulo=446"
-URL_RELATORIO_3 = "http://192.168.15.201/crm/index.php?codmodulo=516"
+USUARIO = os.getenv("USUARIO")
+SENHA = os.getenv("SENHA")
+TIMEOUT = int(os.getenv("TIMEOUT", "20"))
 
-PASTA_RELATORIO_1 = r"Y:\RELATÓRIOS\2025\04.Abril\powerquery\pesquisa hr a hr relatorio chamada"
-PASTA_RELATORIO_2 = r"Y:\RELATÓRIOS\2025\04.Abril\powerquery\ura satisfaçao pesquisa analitica"
-PASTA_RELATORIO_3 = r"Y:\RELATÓRIOS\2025\04.Abril\powerquery\SMS"
+URL_LOGIN = os.getenv("URL_LOGIN")
+URL_RELATORIO_1 = os.getenv("URL_RELATORIO_1")
+URL_RELATORIO_2 = os.getenv("URL_RELATORIO_2")
+URL_RELATORIO_3 = os.getenv("URL_RELATORIO_3")
 
-PASTA_TEMP_DOWNLOAD = r"C:\Temp\downloads_crm"
-PASTA_PRINTS_LOCAL = r"Y:\RELATÓRIOS\2026\Pesquisa hora a hora do dia"
-PASTA_REDE_INDICADORES = r"X:\INDICADORES MANHA E TARDE"
+PASTA_RELATORIO_1 = os.getenv("PASTA_RELATORIO_1")
+PASTA_RELATORIO_2 = os.getenv("PASTA_RELATORIO_2")
+PASTA_RELATORIO_3 = os.getenv("PASTA_RELATORIO_3")
 
-CAMINHO_EXCEL = r"C:\pesq\Relatório hora a hora 5.xlsm"
+PASTA_TEMP_DOWNLOAD = os.getenv("PASTA_TEMP_DOWNLOAD")
+PASTA_PRINTS_LOCAL = os.getenv("PASTA_PRINTS_LOCAL")
+PASTA_REDE_INDICADORES = os.getenv("PASTA_REDE_INDICADORES")
 
-NOME_MACRO_PRINCIPAL = "Planilha4.FiltrarTabelaDinamicaPorColunaA"
-NOME_MACRO_DASHBOARD = "Dashboard_Seguro"
+CAMINHO_EXCEL = os.getenv("CAMINHO_EXCEL")
 
-TEAMS_URL = "https://teams.microsoft.com"
-CHROME_PROFILE = r"C:\ChromeProfiles\Teams"
+NOME_MACRO_PRINCIPAL = os.getenv("NOME_MACRO_PRINCIPAL")
+NOME_MACRO_DASHBOARD = os.getenv("NOME_MACRO_DASHBOARD")
+
+TEAMS_URL = os.getenv("TEAMS_URL")
+CHROME_PROFILE = os.getenv("CHROME_PROFILE")
 
 # ================= UTILITÁRIOS =================
 def log(msg):
@@ -253,7 +256,7 @@ def enviar_teams():
 
         for img in reversed(prints):
             copiar_imagem_clipboard(img)
-            time.sleep(1)
+            time.sleep(2)
 
             campo_msg.send_keys(Keys.CONTROL, "v")
             time.sleep(3)
@@ -272,7 +275,7 @@ def enviar_teams():
 def executar_automacao():
 
     hora_atual = datetime.now().hour
-    if not (10 <= hora_atual <= 21):
+    if not (8 <= hora_atual <= 21):
         log("⏳ Fora do horário permitido")
         return
 
@@ -451,7 +454,7 @@ else:
 # ================= AGENDAMENTO =================
 schedule.every(30).minutes.do(executar_automacao)
 
-log("🤖 Robô ativo (10h às 21h)")
+log("🤖 Robô ativo (09h às 21h)")
 
 while True:
     schedule.run_pending()
