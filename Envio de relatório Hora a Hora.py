@@ -1,7 +1,6 @@
 import os
 import time
 import shutil
-
 from selenium.webdriver.common import options
 from selenium.common.exceptions import StaleElementReferenceException
 import schedule
@@ -9,7 +8,6 @@ from datetime import datetime
 from PIL import Image
 import win32clipboard
 import win32com.client as win32
-
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
@@ -22,36 +20,27 @@ from dotenv import load_dotenv
 
 # ================= CONFIGURAÇÕES =================
 load_dotenv()
-
 USUARIO = os.getenv("USUARIO")
 SENHA = os.getenv("SENHA")
 TIMEOUT = int(os.getenv("TIMEOUT", "20"))
-
 URL_LOGIN = os.getenv("URL_LOGIN")
 URL_RELATORIO_1 = os.getenv("URL_RELATORIO_1")
 URL_RELATORIO_2 = os.getenv("URL_RELATORIO_2")
 URL_RELATORIO_3 = os.getenv("URL_RELATORIO_3")
-
 PASTA_RELATORIO_1 = os.getenv("PASTA_RELATORIO_1")
 PASTA_RELATORIO_2 = os.getenv("PASTA_RELATORIO_2")
 PASTA_RELATORIO_3 = os.getenv("PASTA_RELATORIO_3")
-
 PASTA_TEMP_DOWNLOAD = os.getenv("PASTA_TEMP_DOWNLOAD")
 PASTA_PRINTS_LOCAL = os.getenv("PASTA_PRINTS_LOCAL")
 PASTA_REDE_INDICADORES = os.getenv("PASTA_REDE_INDICADORES")
-
 CAMINHO_EXCEL = os.getenv("CAMINHO_EXCEL")
-
 NOME_MACRO_PRINCIPAL = os.getenv("NOME_MACRO_PRINCIPAL")
 NOME_MACRO_DASHBOARD = os.getenv("NOME_MACRO_DASHBOARD")
-
 TEAMS_URL = os.getenv("TEAMS_URL")
 CHROME_PROFILE = os.getenv("CHROME_PROFILE")
-
 # ================= UTILITÁRIOS =================
 def log(msg):
     print(f"[{datetime.now().strftime('%d/%m %H:%M:%S')}] {msg}")
-
 def limpar_pasta(pasta):
     os.makedirs(pasta, exist_ok=True)
     for f in os.listdir(pasta):
@@ -59,9 +48,9 @@ def limpar_pasta(pasta):
         if os.path.isfile(caminho):
             try:
                 os.remove(caminho)
-            except:
+            except PermissionError as erro:
+                log(f"Não foi possível apagar {caminho}: {erro}")
                 pass
-
 def aguardar_download(pasta, extensoes=(".csv", ".xlsx", ".xls"), timeout=180):
     fim = time.time() + timeout
     while time.time() < fim:
@@ -75,64 +64,46 @@ def aguardar_download(pasta, extensoes=(".csv", ".xlsx", ".xls"), timeout=180):
             return max(arquivos, key=os.path.getmtime)
         time.sleep(1)
     raise TimeoutError("Download não concluído no tempo esperado.")
-
 def mover_arquivo(origem, destino):
     os.makedirs(destino, exist_ok=True)
     shutil.move(origem, os.path.join(destino, os.path.basename(origem)))
-
 def salvar_print(ws, intervalo, nome_arquivo):
     pasta_destino = os.path.dirname(nome_arquivo)
     os.makedirs(pasta_destino, exist_ok=True)
-
-    # Excel exporta primeiro em uma pasta local
     os.makedirs(PASTA_TEMP_DOWNLOAD, exist_ok=True)
-
     nome_temp = os.path.join(
         PASTA_TEMP_DOWNLOAD,
         f"print_temp_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.png"
     )
-
     ws.Activate()
     rng = ws.Range(intervalo)
-
     chart = None
-
     try:
         rng.CopyPicture(Appearance=1, Format=2)
         time.sleep(3)
-
         chart = ws.ChartObjects().Add(0, 0, rng.Width, rng.Height)
         chart.Chart.Paste()
-
         # Salva localmente; o Excel costuma falhar ao exportar direto em unidade de rede
         chart.Chart.Export(nome_temp, "PNG")
-
         # Python copia para o destino final, local ou rede
         shutil.copy2(nome_temp, nome_arquivo)
-
         log(f"📸 Print salvo: {os.path.basename(nome_arquivo)}")
-
     finally:
         if chart is not None:
             chart.Delete()
-
         if os.path.exists(nome_temp):
             os.remove(nome_temp)
 # ================= CLIPBOARD (TEAMS) =================
 def copiar_imagem_clipboard(caminho):
     img = Image.open(caminho).convert("RGB")
-
     temp_bmp = os.path.join(os.environ["TEMP"], "clipboard_image.bmp")
     img.save(temp_bmp, "BMP")
-
     with open(temp_bmp, "rb") as f:
         data = f.read()[14:]
-
     win32clipboard.OpenClipboard()
     win32clipboard.EmptyClipboard()
     win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
     win32clipboard.CloseClipboard()
-
 def ultimas_duas_imagens(pasta):
     arquivos = [
         os.path.join(pasta, f)
@@ -141,7 +112,6 @@ def ultimas_duas_imagens(pasta):
     ]
     arquivos.sort(key=os.path.getmtime, reverse=True)
     return arquivos[:2]
-
 def remover_linhas_ecommerce(wb):
     ws = wb.Worksheets("pesquisa hr a hr relatorio cham")
 
@@ -150,19 +120,15 @@ def remover_linhas_ecommerce(wb):
             "Não foi encontrada uma Tabela do Excel na aba "
             "'pesquisa hr a hr relatorio cham'."
         )
-
     tabela = ws.ListObjects.Item(1)
-
     # Localiza a coluna pelo nome, sem depender da posição BH
     coluna_campanha = None
-
     for i in range(1, tabela.ListColumns.Count + 1):
         nome_coluna = str(tabela.ListColumns.Item(i).Name).strip()
 
         if nome_coluna.upper() == "NOME CAMPANHA":
             coluna_campanha = i
             break
-
     if coluna_campanha is None:
         raise RuntimeError(
             "A coluna 'Nome Campanha' não foi encontrada na tabela."
@@ -171,103 +137,77 @@ def remover_linhas_ecommerce(wb):
         if ws.FilterMode:
             log("🔎 Removendo filtro ativo da tabela")
             ws.ShowAllData()
-    except Exception:
+    except Exception as erro:
+        log(f"Ocorreu um erro: {erro}")
         pass
     removidas = 0
-
-    # De baixo para cima, para não pular linhas ao excluir
     for linha in range(tabela.ListRows.Count, 0, -1):
         valor = tabela.DataBodyRange.Cells(linha, coluna_campanha).Value
         campanha = str(valor or "").strip().upper()
-
         if campanha == "E_COMMERCE":
             tabela.ListRows.Item(linha).Delete()
             removidas += 1
-
     log(f"🧹 Linhas E_COMMERCE removidas: {removidas}")
 # ================= ENVIO TEAMS =================
 def enviar_teams():
     log("➡️ Abrindo Teams")
-
     driver = None
-
     try:
         options = Options()
         options.add_argument("--start-maximized")
         options.add_argument("--disable-notifications")
-
-        # Perfil exclusivo onde o login do Teams fica salvo
         os.makedirs(CHROME_PROFILE, exist_ok=True)
         options.add_argument(f"--user-data-dir={CHROME_PROFILE}")
         options.add_argument("--profile-directory=Default")
-
         driver = webdriver.Chrome(options=options)
-
         wait = WebDriverWait(
             driver,
             120,
             ignored_exceptions=(StaleElementReferenceException,)
         )
-
         driver.get(TEAMS_URL)
-
         def localizar_campo_mensagem(navegador):
             campos = navegador.find_elements(
                 By.XPATH,
                 "//div[@contenteditable='true' and @role='textbox']"
             )
-
             for campo in reversed(campos):
                 try:
                     if campo.is_displayed() and campo.is_enabled():
                         return campo
                 except StaleElementReferenceException:
                     continue
-
             return False
-
         # Tenta novamente caso o Teams atualize a tela durante o carregamento
         for tentativa in range(3):
             try:
                 campo_msg = wait.until(localizar_campo_mensagem)
-
                 driver.execute_script("""
                     arguments[0].scrollIntoView({block: 'center'});
                     arguments[0].focus();
                 """, campo_msg)
-
                 break
-
             except StaleElementReferenceException:
                 if tentativa == 2:
                     raise
                 time.sleep(2)
-
         time.sleep(1)
-
         prints = ultimas_duas_imagens(PASTA_PRINTS_LOCAL)
-
         if len(prints) < 2:
             log("❌ Não foram encontradas 2 imagens para envio")
             return
-
         hora = datetime.now().strftime("%Hh%M")
         log("📤 Enviando imagens no chat")
-
         for img in reversed(prints):
             copiar_imagem_clipboard(img)
             time.sleep(2)
-
             campo_msg.send_keys(Keys.CONTROL, "v")
             time.sleep(3)
-
         campo_msg.send_keys(f" {hora}")
         time.sleep(1)
         campo_msg.send_keys(Keys.ENTER)
-
         log("✅ Mensagem enviada com sucesso")
         time.sleep(5)
-
     finally:
         if driver is not None:
             driver.quit()
@@ -278,20 +218,16 @@ def executar_automacao():
     if not (8 <= hora_atual <= 21):
         log("⏳ Fora do horário permitido")
         return
-
     log(f"🚀 Iniciando ciclo das {hora_atual}:00")
-
     limpar_pasta(PASTA_TEMP_DOWNLOAD)
     limpar_pasta(PASTA_RELATORIO_1)
     limpar_pasta(PASTA_RELATORIO_2)
     limpar_pasta(PASTA_RELATORIO_3)
-
     chrome_options = Options()
     chrome_options.add_experimental_option("prefs", {
         "download.default_directory": PASTA_TEMP_DOWNLOAD,
         "download.prompt_for_download": False
     })
-
     # Código atualizado para o Python 3.13 / Selenium 4+
     driver = webdriver.Chrome(options=chrome_options)
     wait = WebDriverWait(driver, TIMEOUT)
